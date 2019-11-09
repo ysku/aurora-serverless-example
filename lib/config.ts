@@ -1,6 +1,5 @@
-export const AppName = 'Aps';
-export const CompanyGlobalIpAddress = '39.110.216.156/32';
-export const KeyName = 'ysku-default';  // FIXME: set proper ssh key pair name
+export const AppName = 'MyApp';   // FIXME: set proper your application name
+export const KeyName = '';  // FIXME: set proper ssh key pair name
 /************
  * Network
  ************/

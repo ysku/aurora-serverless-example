@@ -1,18 +1,14 @@
-# Useful commands
+# Aurora Serverless Example
 
- * `npm run build`   compile typescript to js
- * `npm run watch`   watch for changes and compile
- * `npm run test`    perform the jest unit tests
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk synth`       emits the synthesized CloudFormation template
+provision [aurora-serverless](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.html) and lambda function using AWS CDK.
 
+## Usage
 
 ```
 $ export AWS_PROFILE=xxx
-$ yarn run cdk deploy ApsNetwork
+$ yarn run cdk deploy MyAppNetwork
 
-$ yarn run cdk deploy ApsDatabase
+$ yarn run cdk deploy MyAppDatabase
 
 # need to enable data api manually by using cli.
 $ aws rds modify-db-cluster \

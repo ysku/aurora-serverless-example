@@ -1,8 +1,8 @@
 import * as cdk from '@aws-cdk/core';
+import * as ec2 from '@aws-cdk/aws-ec2';
 import * as rds from '@aws-cdk/aws-rds';
 import * as secretsmanager from '@aws-cdk/aws-secretsmanager';
 import {
-  NetworkStackName,
   DbName,
   DbUserName,
   Engine,
@@ -14,26 +14,35 @@ import {
   ScalingSecondsUtilAutoPause
 } from './config';
 
+type DatabaseProps = {
+  vpc: ec2.Vpc
+} & cdk.StackProps;
 
 export class Database extends cdk.Stack {
-  constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
+  public readonly dbSG: ec2.SecurityGroup;
+  public readonly dbClusterArn: string;
+  public readonly secret: secretsmanager.Secret;
+
+  constructor(scope: cdk.App, id: string, props: DatabaseProps) {
     super(scope, id, props);
+
+    const vpc = props.vpc;
+
+    this.dbSG = new ec2.SecurityGroup(this, 'DBSG', {
+      vpc: vpc,
+      allowAllOutbound: true,
+      description: 'for database',
+      securityGroupName: 'Database'
+    });
 
     const subnetGroup = new rds.CfnDBSubnetGroup(this, 'SubnetGroup', {
       dbSubnetGroupDescription: 'CloudFormation managed DB subnet group.',
-      subnetIds: [
-        cdk.Fn.importValue(
-          `${NetworkStackName}PrivateSubnet1ID`
-        ),
-        cdk.Fn.importValue(
-          `${NetworkStackName}PrivateSubnet2ID`
-        )
-      ]
+      subnetIds: vpc.publicSubnets.map(sub => sub.subnetId)
     });
 
     // use secret manager to configure database username and password
     // cf. https://docs.aws.amazon.com/ja_jp/secretsmanager/latest/userguide/intro.html
-    const secret = new secretsmanager.Secret(
+    this.secret = new secretsmanager.Secret(
       this, 'Secret', {
         secretName: `${id}Secret`,
         description: 'RDS database auto-generated user password',
@@ -77,12 +86,12 @@ export class Database extends cdk.Stack {
         // cf. https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/dynamic-references.html
         masterUsername: cdk.Fn.join('', [
           '{{resolve:secretsmanager:',
-          secret.secretArn,
+          this.secret.secretArn,
           ':SecretString:username}}'
         ]),
         masterUserPassword: cdk.Fn.join('', [
           '{{resolve:secretsmanager:',
-          secret.secretArn,
+          this.secret.secretArn,
           ':SecretString:password}}'
         ]),
         scalingConfiguration: {
@@ -92,38 +101,18 @@ export class Database extends cdk.Stack {
           secondsUntilAutoPause: ScalingSecondsUtilAutoPause
         },
         vpcSecurityGroupIds: [
-          cdk.Fn.importValue(`${NetworkStackName}DBSGID`)
+          this.dbSG.securityGroupId
         ]
       }
     );
 
-    /**********
-     * Output
-     **********/
-    if (db.databaseName) {
-      new cdk.CfnOutput(this, 'DatabaseName', {
-        exportName: `${id}DatabaseName`,
-        value: db.databaseName
-      });
-    } else {
-      // FIXME: need warning log to notify name is not exposed
-    }
-
-    new cdk.CfnOutput(this, 'ClusterArn', {
-      exportName: `${id}ClusterArn`,
-      value: this.formatArn({
-        service: 'rds',
-        resource: 'cluster',
-        sep: ':',
-        // NOTE: resourceName should be lower case for RDS
-        // however arn is evaluated in case sensitive.
-        resourceName: (db.dbClusterIdentifier || '').toString().toLowerCase()
-      })
-    });
-
-    new cdk.CfnOutput(this, 'SecretArn', {
-      exportName: `${id}SecretArn`,
-      value: secret.secretArn
+    this.dbClusterArn = this.formatArn({
+      service: 'rds',
+      resource: 'cluster',
+      sep: ':',
+      // NOTE: resourceName should be lower case for RDS
+      // however arn is evaluated in case sensitive.
+      resourceName: (db.dbClusterIdentifier || '').toString().toLowerCase()
     });
   }
 }
